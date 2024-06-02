@@ -1,18 +1,16 @@
-import json
-import requests
+from json import load as JSON_LOAD
+from requests import get as REQ_GET
+from api_communications import FPATH, JSON, SENT, SITE_RESPONSE, AUDSaveTranscript
+from time import sleep as SLEEP_FOR_SEC
 import yt_extractor as ytext
-from api_communications import FPATH, JSON, SITE_RESPONSE, AUDSaveTranscript
 import os
-import time
-
-type SENT   = dict[str: list[str]];
 
 def YTVIDSaveSentiments(ydl: ytext.YTDL, url: ytext.URL, data_dir: FPATH) -> FPATH:
     video_info: ytext.VID_INFO  = ytext.YDLGetVideoInfo(ydl, url);
     audio_url: ytext.URL        = ytext.YDLGetAudioURL(video_info);
     
     title: FPATH                = data_dir+"video";
-    thumbReq: SITE_RESPONSE     = requests.get(url = ytext.YDLGetVideoThumbnailURL(video_info));
+    thumbReq: SITE_RESPONSE     = REQ_GET(url = ytext.YDLGetVideoThumbnailURL(video_info));
 
     with open(data_dir+"thumbnail.jpg", "wb") as fobj: fobj.write(thumbReq.content);
 
@@ -27,12 +25,12 @@ def YTVIDSaveSentiments(ydl: ytext.YTDL, url: ytext.URL, data_dir: FPATH) -> FPA
 def AnalyzeSentiments(file_path: FPATH) -> None:
     print("Analyzing Sentiments !\n");
     with open(file_path, "r") as fobj:
-        data    = json.load(fobj);
+        data    = JSON_LOAD(fobj);
 
     sentiments: SENT    = {
-        "NEGATIVE": [],
-        "NEUTRAL": [],
-        "POSITIVE": [],
+        "NEGATIVE"  : [],
+        "NEUTRAL"   : [],
+        "POSITIVE"  : [],
     };
 
     for res in data:
@@ -54,7 +52,6 @@ def AnalyzeSentiments(file_path: FPATH) -> None:
     print(f"Positive ratio       : {pos_ratio:.3f}");
 
 
-
 def main() -> None:
     DATA_DIR: FPATH             = "./data/";
     ydl_opts: dict[str, any]    = {
@@ -69,11 +66,11 @@ def main() -> None:
         ],
     };
 
-    ydl: ytext.YTDL             = ytext.yt_dlp.YoutubeDL(ydl_opts);
+    ydl: ytext.YTDL             = ytext.YoutubeDL(ydl_opts);
     video_url: ytext.URL        = input("Enter video urL: ");
     json_file: FPATH            = YTVIDSaveSentiments(ydl, video_url, DATA_DIR);
 
-    time.sleep(1);
+    SLEEP_FOR_SEC(1);
     print('\033c', end = '', flush=True);
     AnalyzeSentiments(json_file);
 
@@ -86,7 +83,8 @@ if ("__main__" == __name__):
     try:
         main();
     except KeyboardInterrupt:
-        print("\nexiting applicaion !");
+        pass
     finally:
+        print("\nexiting application !");
         exit();
         # DelData();

@@ -1,14 +1,14 @@
-import yt_dlp
+from yt_dlp import YoutubeDL
 
-type YTDL       = yt_dlp.YoutubeDL;
+type YTDL       = YoutubeDL;
 type VID_INFO   = (any | dict[str, any] | None);
 type URL        = str;
 type FPATH      = str;
 
-def YDLGetVideoInfo(ydl: YTDL, url: URL) -> VID_INFO:
+def YDLGetVideoInfo(ydl: YTDL, vidURL: URL) -> VID_INFO:
     with ydl:
         result: VID_INFO  = ydl.extract_info(
-            url,
+            url      = vidURL,
             download = True,
         );
 
