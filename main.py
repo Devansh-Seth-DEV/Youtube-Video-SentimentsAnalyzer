@@ -67,7 +67,7 @@ def main() -> None:
     };
 
     ydl: ytext.YTDL             = ytext.YoutubeDL(ydl_opts);
-    video_url: ytext.URL        = input("Enter video urL: ");
+    video_url: ytext.URL        = input("Enter video url: ");
     json_file: FPATH            = YTVIDSaveSentiments(ydl, video_url, DATA_DIR);
 
     SLEEP_FOR_SEC(1);
