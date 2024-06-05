@@ -1,10 +1,25 @@
 @echo off
+call config.cmd
 
-set REQ_FILE=dependencies/deps.txt
-set INSTALL_PGK=pip install -r %REQ_FILE%
-set FFMPEG_BIN=dependencies/ffmpeg/bin
+title Package Downloader
 
-%INSTALL_PGK%
-set PATH=%FFMPEG%;%PATH%
+if exist %VENV_PATH%/ (
+	call %VENV_ACTIVATE_PATH%/activate.bat	
+	if %ERRORLEVEL% GEQ 1 (
+		echo Failed to activate !
+	) else ( 
+		echo Activated 
+		echo Installing packages ...
+		pip install -r %REQ_FILE%
+		if %ERRORLEVEL% GEQ 1 (
+			echo Error occured while downloading packages !
+		) else (
+			echo Successfully downloaded all packages
+		)
+		deactivate
+	)
+) else (
+	echo Virtual environment [%VENV_NAME%] not found !
+)
+
 pause
-cls
