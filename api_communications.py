@@ -3,7 +3,15 @@ from requests import get as REQ_GET
 from requests import post as REQ_POST
 from time import sleep as SLEEP_FOR_SEC
 from json import dump as JSON_DUMP
-import api_secrets
+from abc import ABC, abstractmethod
+
+# Constants ------------------------------------------------------------
+API_KEY_ASSEMBLYAI: str = "2396e3cdd1b345549d7a9fdb0f27c9e8";
+HEADERS: dict           = {"authorization": API_KEY_ASSEMBLYAI};
+
+UPLOAD_URL: str         = "https://api.assemblyai.com/v2/upload";
+TRANSCRIPT_URL: str     = "https://api.assemblyai.com/v2/transcript";
+POLL_URL: str           = TRANSCRIPT_URL+"/";
 
 type FPATH           = str;
 type SITE_RESPONSE   = REQ_RESPONSE;
@@ -12,78 +20,137 @@ type JSON            = dict[str, str];
 type SENT            = dict[str, list[str]]
 type TRSRESULT       = tuple[any, None | str]
 
-# Read audio file -------------------------------------------------------------------------------------
-def AUDReadfile(file_path: FPATH, chunkSize: int = 5242880):
-    with open(file_path, "rb") as fobj:
-        while (1):
-            data: bytes = fobj.read(chunkSize);
-            if (not data): break;
-            yield data;
 
-# Upload ----------------------------------------------------------------------------------------------
-def AUDGetUploadURL(file_path: FPATH) -> URL:
-    uploadResponse: SITE_RESPONSE   = REQ_POST(
-        url     = api_secrets.UPLOAD_URL,
-        headers = api_secrets.HEADERS,
-        data    = AUDReadfile(file_path)
-    );
+class IFileManager(ABC):
+    @abstractmethod
+    @property
+    def file(self) -> FPATH: pass
 
-    # print(uploadResponse.json());
-    return uploadResponse.json()["upload_url"];
+class IJsonManager(ABC):
+    @abstractmethod
+    @property
+    def jsonData(self) -> JSON: pass
 
-# Transcribe ------------------------------------------------------------------------------------------
-def AUDGetTransribeID(json_data: JSON) -> str:
-    transcribeIDResponse: SITE_RESPONSE   = REQ_POST(
-            url     = api_secrets.TRANSCRIPT_URL,
-            headers = api_secrets.HEADERS,
-            json    = json_data
+class IAudioManager(IFileManager):
+    @abstractmethod
+    @property
+    def chunkSize(self) -> int: pass
+
+    @abstractmethod
+    def readAudio(self): pass
+
+class ISpeech2TextApiManager(IJsonManager):
+    @abstractmethod
+    def getURL(self, audioReader: IAudioManager) -> URL: pass
+
+    @abstractmethod
+    def getTranscribeID(self) -> str: pass
+
+    @abstractmethod
+    def pollJson(self) -> any: pass
+
+class IApiTranscriptManager(ABC):
+    @abstractmethod
+    def getTranscript(self) -> TRSRESULT: pass
+
+    @abstractmethod
+    def saveTranscript(self, asFileName: str, toPath: FPATH) -> None: pass
+
+
+class AudioReader(IAudioManager):
+    def __init__(self, file: FPATH, size: int = 5242880) -> None:
+        self._file = file
+        self._chunkSize = size
+    
+    @property
+    def file(self) -> FPATH:
+        return self._file
+
+    @property
+    def chunkSize(self) -> int:
+        return self._chunkSize
+
+    def readAudio(self):
+        with open(self._file, "rb") as audFile:
+            while(1):
+                data: bytes = audFile.read(self._chunkSize)
+                if not data: break
+                yield data
+
+
+class AssemblyAISpeech2TextApi(ISpeech2TextApiManager):
+    def __init__(self, jsonData: JSON) -> None:
+        self._jsonData = jsonData
+
+    @property
+    def jsonData(self) -> JSON:
+        return self._jsonData
+
+    def getURL(self, audioReader: IAudioManager) -> URL:
+        uploadResponse: SITE_RESPONSE   = REQ_POST(
+            url     = UPLOAD_URL,
+            headers = HEADERS,
+            data    = audioReader.readAudio(audioReader.file)
         );
 
-    # print(transcribeResponse.json());
-    return transcribeIDResponse.json()["id"];
+        # print(uploadResponse.json());
+        return uploadResponse.json()["upload_url"];
 
-# Poll -----------------------------------------------------------------------------------------------
-def AUDGetPollJSON(transcript_id: str) -> any:
-    poll_url: URL               = api_secrets.POLL_URL+transcript_id;
-    pollResponse: SITE_RESPONSE = REQ_GET(
-        url     = poll_url,
-        headers = api_secrets.HEADERS
-    );
+    def getTranscribeID(self) -> str:
+        transcribeIDResponse: SITE_RESPONSE   = REQ_POST(
+                url     = UPLOAD_URL,
+                headers = HEADERS,
+                json    = self._jsonData
+            );
 
-    return pollResponse.json();
+        # print(transcribeResponse.json());
+        return transcribeIDResponse.json()["id"];
 
-def AUDGetTranscriptResult(json_data: JSON) -> TRSRESULT:
-    transcript_id: str  = AUDGetTransribeID(json_data);
+    def pollJson(self) -> any:
+        pollURL: URL                = POLL_URL + self.getTranscribeID();
+        pollResponse: SITE_RESPONSE = REQ_GET(
+            url     = pollURL,
+            headers = HEADERS
+        );
 
-    print("Please have patience it may take a while", end = ' ', flush=True);
-    while (1):
-        data: any = AUDGetPollJSON(transcript_id);
+        return pollResponse.json();
+    
+class AssemblyAIApiTranscriptManager(IApiTranscriptManager):
+    def __init__(self, speech2TextApi: ISpeech2TextApiManager) -> None:
+        self.__asmSpeech2TextApi = speech2TextApi
 
-        if ("completed" == data["status"]): print(); return data, None;
-        elif ("error" == data["status"]): print(); return data, data["error"];
-        else:
-            print('.', end = '', flush = True);
-            SLEEP_FOR_SEC(30);
+    def getTranscript(self) -> TRSRESULT:
+        transcript_id: str  = self.__asmSpeech2TextApi.getTranscribeID(self.__speech2TextApi.jsonData);
 
-# Save Transcript --------------------------------------------------------------------------------------
-def AUDSaveTranscript(file_path: FPATH, json_data: JSON) -> None:
-    print("Creating transcript ...")
-    data, error = AUDGetTranscriptResult(json_data);
+        print("Please have patience it may take a while", end = ' ', flush=True);
+        while (1):
+            data: any = self.__asmSpeech2TextApi.pollJson(transcript_id);
 
-    if (data):
-        filename: FPATH   = file_path + ".txt";
-        with open(filename, 'w') as fobj:
-            if (None != data["text"]):
-                fobj.write(data["text"]);
+            if ("completed" == data["status"]): print(); return data, None;
+            elif ("error" == data["status"]): print(); return data, data["error"];
+            else:
+                print('.', end = '', flush = True);
+                SLEEP_FOR_SEC(30);
 
-        if ("sentiment_analysis" in json_data.keys()):
-            filename: FPATH    = file_path + "_sentiments.json";
+
+    def saveTranscript(self, asFileName: str, toPath: FPATH) -> None:
+        print("Creating transcript ...")
+        data, error = self.getTranscript();
+
+        if (data):
+            filename: FPATH   = toPath + asFileName + ".txt";
             with open(filename, 'w') as fobj:
-                sentiments  = data["sentiment_analysis_results"];
-                JSON_DUMP(sentiments, fobj, indent = 4);
+                if (None != data["text"]):
+                    fobj.write(data["text"]);
+
+            if ("sentiment_analysis" in self.__apiReciever.jsonData.keys()):
+                filename: FPATH    = toPath + asFileName + "_sentiments.json";
+                with open(filename, 'w') as fobj:
+                    sentiments  = data["sentiment_analysis_results"];
+                    JSON_DUMP(sentiments, fobj, indent = 4);
 
 
-        print("Location:", file_path);
-        print("Transcription successfully saved.");
+            print("Location:", toPath + asFileName);
+            print("Transcription successfully saved.");
 
-    elif (error): print("Error:", error);
+        elif (error): print("Error:", error);
