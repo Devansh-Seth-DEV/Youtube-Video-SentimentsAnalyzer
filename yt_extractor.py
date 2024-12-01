@@ -1,30 +1,74 @@
 from yt_dlp import YoutubeDL
+from abc import ABC, abstractmethod
 
 type YTDL       = YoutubeDL;
 type VID_INFO   = (any | dict[str, any] | None);
 type URL        = str;
 type FPATH      = str;
 
-def YDLGetVideoInfo(ydl: YTDL, vidURL: URL) -> VID_INFO:
-    with ydl:
-        result: VID_INFO  = ydl.extract_info(
-            url      = vidURL,
-            download = True,
-        );
+class IYTVideoExtractor(ABC):
+    @abstractmethod
+    def getVideoInfo(self, videoURL: URL) -> VID_INFO: pass
 
-    if ("entries" in result): return result["entries"][0];
+    @abstractmethod
+    def getVideoDuration(self, videoInfo: VID_INFO): pass
 
-    print("[thumbnail]:", result["thumbnails"][-2]["url"]);
-    print("[duration]:", result["duration"], 's');
-    print("[audio channels]:", result["audio_channels"]);
 
-    return result;
+class IYTAudioExtractor(ABC):
+    @abstractmethod
+    def getAudioURL(self) -> URL: pass
 
-def YDLGetAudioURL(video_info: VID_INFO) -> URL:
-    for fmt in video_info["formats"]:
-        if ("m4a" == fmt["ext"]): return fmt["url"];
+    @abstractmethod
+    def getAudioChannels(self): pass
 
-YDLGetVideoThumbnailURL = lambda video_info : video_info["thumbnails"][-2]["url"];
-YDLGetVideoDuration     = lambda video_info : video_info["duration"];
-YDLGetAudioChannels     = lambda video_info : video_info["audio_channels"];
-YDLGetTitle             = lambda video_info : video_info["title"];
+class IYTInfoExtractor(ABC):
+    @abstractmethod
+    def getTitle(self): pass
+
+    @abstractmethod
+    def getThumbnailURL(self): pass
+
+
+
+class YTVideoExtractor(IYTAudioExtractor):
+    def __init__(self, ydl: YTDL) -> None:
+        self.__ydl = ydl
+
+    def getVideoInfo(self, videoURL: URL) -> VID_INFO:
+        with self.__ydl:
+            videoInfo: VID_INFO  = self.__ydl.extract_info(
+                url      = videoURL,
+                download = True,
+            );
+
+        if ("entries" in videoInfo): return videoInfo["entries"][0];
+
+        # print("[thumbnail]:", result["thumbnails"][-2]["url"]);
+        # print("[duration]:", result["duration"], 's');
+        # print("[audio channels]:", result["audio_channels"]);
+
+        return videoInfo;
+
+    def getVideoDuration(self, videoInfo: VID_INFO): return videoInfo["duration"]
+
+
+class YTAudioExtractor(IYTAudioExtractor):
+    def __init__(self, videoInfo: VID_INFO) -> None:
+        self.__videoInfo = videoInfo
+
+    def getAudioURL(self) -> URL:
+        for fmt in self.__videoInfo["formats"]:
+            if ("m4a" == fmt["ext"]): return fmt["url"];
+
+        return ""
+
+    def getAudioChannels(self): return self.__videoInfo["audio_channels"]
+
+
+class YTInfoExtractor(IYTInfoExtractor):
+    def __init__(self, videoInfo: VID_INFO) -> None:
+        self.__videoInfo = videoInfo
+
+    def getTitle(self): return self.__videoInfo["title"]
+
+    def getThumbnailURL(self): return self.__videoInfo["thumbnails"][-2]["url"]
