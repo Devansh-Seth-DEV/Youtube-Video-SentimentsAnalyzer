@@ -18,17 +18,17 @@ type TRSRESULT       = tuple[any, None | str]
 
 # Config Profile Functions --------------------------------------------
 def assemblyAIConfigProfile() -> APICONFIG_TYPE:
+    siteURL = "https://api.assemblyai.com/v2"
     key = "2396e3cdd1b345549d7a9fdb0f27c9e8"
-    transcriptURL = "https://api.assemblyai.com/v2/transcript"
     
     return {
         "key": key,
         "headers": {
             "authorization": key
         },
-        "uploadURL": "https://api.assemblyai.com/v2/upload",
-        "transcriptURL": transcriptURL,
-        "pollURL": transcriptURL + "/"
+        "uploadURL": f"{siteURL}/upload",
+        "transcriptURL": f"{siteURL}/transcript",
+        "pollURL": f"{siteURL}/transcript/"
     }
 
 
