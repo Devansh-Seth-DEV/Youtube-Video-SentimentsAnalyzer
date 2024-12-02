@@ -5,14 +5,10 @@ from time import sleep as SLEEP_FOR_SEC
 from json import dump as JSON_DUMP
 from abc import ABC, abstractmethod
 
+# TypeAlias -----------------------------------------------------------
+type APICONFIG_TYPE = dict[str, dict[str, dict[str, str | None] | str | None]]
+
 # Constants ------------------------------------------------------------
-API_KEY_ASSEMBLYAI: str = "2396e3cdd1b345549d7a9fdb0f27c9e8";
-HEADERS: dict           = {"authorization": API_KEY_ASSEMBLYAI};
-
-UPLOAD_URL: str         = "https://api.assemblyai.com/v2/upload";
-TRANSCRIPT_URL: str     = "https://api.assemblyai.com/v2/transcript";
-POLL_URL: str           = TRANSCRIPT_URL+"/";
-
 type FPATH           = str;
 type SITE_RESPONSE   = REQ_RESPONSE;
 type URL             = str; 
@@ -20,6 +16,26 @@ type JSON            = dict[str, str];
 type SENT            = dict[str, list[str]]
 type TRSRESULT       = tuple[any, None | str]
 
+# Config Profile Functions --------------------------------------------
+def assemblyAIConfigProfile() -> APICONFIG_TYPE:
+    key = "2396e3cdd1b345549d7a9fdb0f27c9e8"
+    transcriptURL = "https://api.assemblyai.com/v2/transcript"
+    
+    return {
+        "key": key,
+        "headers": {
+            "authorization": key
+        },
+        "uploadURL": "https://api.assemblyai.com/v2/upload",
+        "transcriptURL": transcriptURL,
+        "pollURL": transcriptURL + "/"
+    }
+
+
+# API Config Profiles ------------------------------------------------
+apiConfigProfiles: APICONFIG_TYPE = {
+    "assemblyAI": assemblyAIConfigProfile()
+}
 
 class IFileManager(ABC):
     @abstractmethod
@@ -80,16 +96,17 @@ class AudioReader(IAudioManager):
 
 class AssemblyAISpeech2TextApi(ISpeech2TextApiManager):
     def __init__(self, jsonData: JSON) -> None:
-        self._jsonData = jsonData
+        self.__apiConfig = apiConfigProfiles["assemblyAI"]
+        self.__jsonData = jsonData
 
     @property
     def jsonData(self) -> JSON:
-        return self._jsonData
+        return self.__jsonData
 
     def getURL(self, audioReader: IAudioManager) -> URL:
         uploadResponse: SITE_RESPONSE   = REQ_POST(
-            url     = UPLOAD_URL,
-            headers = HEADERS,
+            url     = self.__apiConfig["uploadURL"],
+            headers = self.__apiConfig["headers"],
             data    = audioReader.readAudio(audioReader.file)
         );
 
@@ -98,9 +115,9 @@ class AssemblyAISpeech2TextApi(ISpeech2TextApiManager):
 
     def getTranscribeID(self) -> str:
         transcribeIDResponse: SITE_RESPONSE   = REQ_POST(
-                url     = UPLOAD_URL,
-                headers = HEADERS,
-                json    = self._jsonData
+                url     = self.__apiConfig["uploadURL"],
+                headers = self.__apiConfig["headers"],
+                json    = self.__jsonData
             );
 
         # print(transcribeResponse.json());
@@ -109,8 +126,8 @@ class AssemblyAISpeech2TextApi(ISpeech2TextApiManager):
     def pollJson(self) -> any:
         pollURL: URL                = POLL_URL + self.getTranscribeID();
         pollResponse: SITE_RESPONSE = REQ_GET(
-            url     = pollURL,
-            headers = HEADERS
+            url     = self.__apiConfig["pollURL"],
+            headers = self.__apiConfig["headers"]
         );
 
         return pollResponse.json();
