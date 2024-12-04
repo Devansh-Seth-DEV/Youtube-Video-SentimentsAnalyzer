@@ -29,7 +29,6 @@ class IYTInfoExtractor(ABC):
     def getThumbnailURL(self): pass
 
 
-
 class YTVideoExtractor(IYTAudioExtractor):
     def __init__(self, ydl: YTDL) -> None:
         self.__ydl = ydl
