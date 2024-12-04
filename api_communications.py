@@ -13,29 +13,8 @@ type FPATH           = str;
 type SITE_RESPONSE   = REQ_RESPONSE;
 type URL             = str; 
 type JSON            = dict[str, str];
-type SENT            = dict[str, list[str]]
 type TRSRESULT       = tuple[any, None | str]
 
-# Config Profile Functions --------------------------------------------
-def assemblyAIConfigProfile() -> APICONFIG_TYPE:
-    siteURL = "https://api.assemblyai.com/v2"
-    key = "2396e3cdd1b345549d7a9fdb0f27c9e8"
-    
-    return {
-        "key": key,
-        "headers": {
-            "authorization": key
-        },
-        "uploadURL": f"{siteURL}/upload",
-        "transcriptURL": f"{siteURL}/transcript",
-        "pollURL": f"{siteURL}/transcript/"
-    }
-
-
-# API Config Profiles ------------------------------------------------
-apiConfigProfiles: APICONFIG_TYPE = {
-    "assemblyAI": assemblyAIConfigProfile()
-}
 
 class IFileManager(ABC):
     @abstractmethod
@@ -72,6 +51,15 @@ class IApiTranscriptManager(ABC):
     @abstractmethod
     def saveTranscript(self, asFileName: str, toPath: FPATH) -> None: pass
 
+class ISpeech2TextApi(ISpeech2TextApiManager, IApiTranscriptManager):
+    @abstractmethod
+    @property
+    def transcripter(self): pass
+
+    @abstractmethod
+    @property
+    def api(self): pass
+
 
 class AudioReader(IAudioManager):
     def __init__(self, file: FPATH, size: int = 5242880) -> None:
@@ -95,8 +83,17 @@ class AudioReader(IAudioManager):
 
 
 class AssemblyAISpeech2TextApi(ISpeech2TextApiManager):
+    __siteURL = "https://api.assemblyai.com/v2"
+    __config = {
+        "headers": {
+            "authorization": "2396e3cdd1b345549d7a9fdb0f27c9e8"
+        },
+        "uploadURL": f"{__siteURL}/upload",
+        "transcriptURL": f"{__siteURL}/transcript",
+        "pollURL": f"{__siteURL}/transcript/"
+    }
+    
     def __init__(self, jsonData: JSON) -> None:
-        self.__apiConfig = apiConfigProfiles["assemblyAI"]
         self.__jsonData = jsonData
 
     @property
@@ -105,8 +102,8 @@ class AssemblyAISpeech2TextApi(ISpeech2TextApiManager):
 
     def getURL(self, audioReader: IAudioManager) -> URL:
         uploadResponse: SITE_RESPONSE   = REQ_POST(
-            url     = self.__apiConfig["uploadURL"],
-            headers = self.__apiConfig["headers"],
+            url     = self.__config["uploadURL"],
+            headers = self.__config["headers"],
             data    = audioReader.readAudio(audioReader.file)
         );
 
@@ -115,8 +112,8 @@ class AssemblyAISpeech2TextApi(ISpeech2TextApiManager):
 
     def getTranscribeID(self) -> str:
         transcribeIDResponse: SITE_RESPONSE   = REQ_POST(
-                url     = self.__apiConfig["uploadURL"],
-                headers = self.__apiConfig["headers"],
+                url     = self.__config["uploadURL"],
+                headers = self.__config["headers"],
                 json    = self.__jsonData
             );
 
@@ -124,24 +121,24 @@ class AssemblyAISpeech2TextApi(ISpeech2TextApiManager):
         return transcribeIDResponse.json()["id"];
 
     def pollJson(self) -> any:
-        pollURL: URL                = POLL_URL + self.getTranscribeID();
+        pollURL: URL                = self.__config["pollURL"] + self.getTranscribeID();
         pollResponse: SITE_RESPONSE = REQ_GET(
-            url     = self.__apiConfig["pollURL"],
-            headers = self.__apiConfig["headers"]
+            url     = pollURL,
+            headers = self.__config["headers"]
         );
 
         return pollResponse.json();
     
 class AssemblyAIApiTranscriptManager(IApiTranscriptManager):
-    def __init__(self, speech2TextApi: ISpeech2TextApiManager) -> None:
-        self.__asmSpeech2TextApi = speech2TextApi
+    def __init__(self, speech2TextApi: AssemblyAISpeech2TextApi) -> None:
+        self.__api = speech2TextApi
 
     def getTranscript(self) -> TRSRESULT:
-        transcript_id: str  = self.__asmSpeech2TextApi.getTranscribeID(self.__speech2TextApi.jsonData);
+        transcript_id: str  = self.__api.getTranscribeID(self.__api.jsonData);
 
         print("Please have patience it may take a while", end = ' ', flush=True);
         while (1):
-            data: any = self.__asmSpeech2TextApi.pollJson(transcript_id);
+            data: any = self.__api.pollJson(transcript_id);
 
             if ("completed" == data["status"]): print(); return data, None;
             elif ("error" == data["status"]): print(); return data, data["error"];
@@ -160,7 +157,7 @@ class AssemblyAIApiTranscriptManager(IApiTranscriptManager):
                 if (None != data["text"]):
                     fobj.write(data["text"]);
 
-            if ("sentiment_analysis" in self.__apiReciever.jsonData.keys()):
+            if ("sentiment_analysis" in self.__api.jsonData.keys()):
                 filename: FPATH    = toPath + asFileName + "_sentiments.json";
                 with open(filename, 'w') as fobj:
                     sentiments  = data["sentiment_analysis_results"];
@@ -171,3 +168,29 @@ class AssemblyAIApiTranscriptManager(IApiTranscriptManager):
             print("Transcription successfully saved.");
 
         elif (error): print("Error:", error);
+
+class AssemblyAIApi(ISpeech2TextApi, AssemblyAISpeech2TextApi, AssemblyAIApiTranscriptManager):
+    def __init__(self, jsonData: JSON) -> None:
+        self.__api = AssemblyAISpeech2TextApi.__init__(jsonData)
+        self.__transcriptManager = AssemblyAIApiTranscriptManager.__init__(self.__api)
+    
+    def getURL(self, audioReader: IAudioManager) -> URL:
+        return super().getURL(audioReader)
+    
+    def getTranscribeID(self) -> str:
+        return super().getTranscribeID()
+    
+    def pollJson(self) -> any:
+        return super().pollJson()
+    
+    def getTranscript(self) -> TRSRESULT:
+        return super().getTranscript()
+    
+    def saveTranscript(self, asFileName: str, toPath: FPATH) -> None:
+        return super().saveTranscript(asFileName, toPath)
+
+    @property
+    def transcripter(self) -> AssemblyAIApiTranscriptManager: return self.__transcriptManager
+
+    @property
+    def api(self) -> AssemblyAISpeech2TextApi: return self.__api
