@@ -28,22 +28,21 @@ def main() -> None:
     audioURL                    = ytext.YTAudioExtractor(videoInfo).getAudioURL()
 
     # Api initialisations
-    json_data: JSON             = {
+    jsonData: JSON             = {
         "audio_url": audioURL,
         "sentiment_analysis": True
     };
 
-    speech2textApi              = APICOM.AssemblyAISpeech2TextApi(json_data)
-    transcriptManager           = APICOM.AssemblyAIApiTranscriptManager(speech2textApi)
-
+    speech2textApi              = APICOM.AssemblyAISpeech2TextApi(jsonData)
     # Sentiments Analyses
-    sentimentsAnalyzer          = VSA.YTVideoSentimentAnalyzer(videoInfo, transcriptManager)
-    sentimentsFile: FPATH       = sentimentsAnalyzer.saveSentiments(DATA_DIR);
+    sentimentsAnalyzer          = VSA.YTVideoSentimentAnalyzer(videoInfo, speech2textApi)
+    sentimentsFile: FPATH       = sentimentsAnalyzer.write(DATA_DIR);
+    sentimentsAnalyzer.fetch(sentimentsFile)
 
     SLEEP_FOR_SEC(1);
     print('\033c', end = '', flush=True);
     
-    sentimentsAnalyzer.analyzeSentiments(sentimentsFile);
+    sentimentsAnalyzer.print()
 
 def DelData() -> None:
     for filename in os.listdir("./data/"):
