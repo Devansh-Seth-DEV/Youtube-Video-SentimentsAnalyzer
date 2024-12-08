@@ -3,8 +3,6 @@ from api_communications import FPATH, SITE_RESPONSE, REQ_GET, ISpeech2TextApi
 import yt_extractor as ytext
 from abc import ABC, abstractmethod
 
-type SENTIMENTS_TYPE = dict[str, list[str | None]]
-
 class IVideoSentimentWriter(ABC):
     @abstractmethod
     def write(self, toPath: FPATH) -> FPATH: pass
@@ -24,12 +22,10 @@ class YTVideoSentimentWriter(IVideoSentimentWriter):
         self.__videoInfo = videoInfo
         self.__speech2TextApi = speech2TextApi
 
-    def write(self, toPath: FPATH) -> FPATH:       
-
+    def write(self, toPath: FPATH) -> FPATH:
         infoExtractor = ytext.YTInfoExtractor(self.__videoInfo)
-
         title = infoExtractor.getTitle()
-        thumbReq: SITE_RESPONSE     = REQ_GET(url = infoExtractor.getThumbnailURL());
+        thumbReq: SITE_RESPONSE = REQ_GET(url = infoExtractor.getThumbnailURL());
 
         with open(toPath+"thumbnail.jpg", "wb") as fobj: fobj.write(thumbReq.content);
 
@@ -38,7 +34,7 @@ class YTVideoSentimentWriter(IVideoSentimentWriter):
 
 class YTVideoSentimentsFetcher(IVideoSemtimentsFetcher):
     def __init__(self) -> None:
-        self.__sentiments: SENTIMENTS_TYPE = {
+        self.__sentiments: {
             "NEGATIVE"  : [],
             "NEUTRAL"   : [],
             "POSITIVE"  : [],
@@ -72,12 +68,3 @@ class YTVideoSentimentsFetcher(IVideoSemtimentsFetcher):
 class YTVideoSentimentAnalyzer(IVideoSentimentAnalyzer, YTVideoSentimentWriter, YTVideoSentimentsFetcher):
     def __init__(self, videoInfo: ytext.VID_INFO, speech2TextApi: ISpeech2TextApi) -> None:
         super().__init__(videoInfo, speech2TextApi)
-
-    def write(self, toPath: FPATH) -> FPATH:
-        return super().write(toPath)
-
-    def fetch(self, fromFile: FPATH) -> None:
-        return super().fetch(fromFile)
-    
-    def print(self) -> None:
-        return super().print()
