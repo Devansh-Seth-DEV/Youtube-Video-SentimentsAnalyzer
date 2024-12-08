@@ -33,7 +33,8 @@ def main() -> None:
         "sentiment_analysis": True
     };
 
-    speech2textApi              = APICOM.AssemblyAISpeech2TextApi(jsonData)
+    assemblyAIApiKey            = "6248f819c69841afa66c96806d96cb82"
+    speech2textApi              = APICOM.AssemblyAIApi(assemblyAIApiKey, jsonData)
     # Sentiments Analyses
     sentimentsAnalyzer          = VSA.YTVideoSentimentAnalyzer(videoInfo, speech2textApi)
     sentimentsFile: FPATH       = sentimentsAnalyzer.write(DATA_DIR);
