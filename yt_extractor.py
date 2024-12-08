@@ -1,10 +1,11 @@
 from yt_dlp import YoutubeDL
 from abc import ABC, abstractmethod
+from typing import TypeAlias
 
-type YTDL       = YoutubeDL;
-type VID_INFO   = (any | dict[str, any] | None);
-type URL        = str;
-type FPATH      = str;
+YTDL       :TypeAlias = YoutubeDL;
+VID_INFO   :TypeAlias = '(any | dict[str, any] | None)';
+URL        :TypeAlias = str;
+FPATH      :TypeAlias = str;
 
 class IYTVideoExtractor(ABC):
     @abstractmethod
@@ -29,7 +30,7 @@ class IYTInfoExtractor(ABC):
     def getThumbnailURL(self): pass
 
 
-class YTVideoExtractor(IYTAudioExtractor):
+class YTVideoExtractor(IYTVideoExtractor):
     def __init__(self, ydl: YTDL) -> None:
         self.__ydl = ydl
 
